@@ -2,100 +2,102 @@ import streamlit as st
 import pickle
 import pandas as pd
 import requests
+import joblib
 import os
 import time
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+
+# 1. Page Config (Must be the very first command)
+st.set_page_config(layout="wide") 
 
 st.header('Movie Recommender System')
 
-# --- 1. LOAD DATA ---
+# --- 2. LOAD DATA ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
-movies_path = os.path.join(current_dir, 'movie_list.pkl')
-movies = pickle.load(open(movies_path, 'rb'))
 
-if isinstance(movies, dict):
-    movies = pd.DataFrame(movies)
-
-# Auto-fix tags if they are lists
-if isinstance(movies['tags'].iloc[0], list):
-    movies['tags'] = movies['tags'].apply(lambda x: " ".join(x))
-
-# --- 2. CACHING (FIXES SPEED) ---
-# @st.cache_resource tells Streamlit: "Run this ONCE and save the result in memory."
-# Next time you click, it loads instantly.
 @st.cache_resource
-def calculate_similarity_matrix(df):
-    cv = CountVectorizer(max_features=5000, stop_words='english')
-    vector = cv.fit_transform(df['tags']).toarray()
-    return cosine_similarity(vector)
+def load_data():
+    try:
+        # Load movie list
+        movies_path = os.path.join(current_dir, 'movie_list.pkl')
+        movies = pickle.load(open(movies_path, 'rb'))
+        
+        # Load similarity matrix (Trying compressed first, then normal)
+        sim_path_compressed = os.path.join(current_dir, 'similarity_compressed.pkl')
+        sim_path_normal = os.path.join(current_dir, 'similarity.pkl')
+        
+        if os.path.exists(sim_path_compressed):
+            similarity = joblib.load(sim_path_compressed)
+        else:
+            similarity = pickle.load(open(sim_path_normal, 'rb'))
+            
+        return movies, similarity
+    except Exception as e:
+        st.error(f"Error loading data files: {e}")
+        return None, None
 
-# Calculate once, reuse forever
-similarity = calculate_similarity_matrix(movies)
+movies, similarity = load_data()
 
-# --- 3. POSTER FUNCTION (FIXES IMAGES) ---
+if movies is None:
+    st.stop()
+
+# --- 3. POSTER FETCHER ---
 def fetch_poster(movie_id):
-    api_key = "YOUR_NEW_API_KEY_HERE"  # <--- PASTE YOUR KEY AGAIN
+    # Your specific API Key
+    api_key = "cd76cf2795eb1690d74cf60297624f65"
     url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={api_key}&language=en-US"
     
-    # Try to fetch the poster 3 times before failing
-    for attempt in range(3):
+    fallback = "https://via.placeholder.com/500x750?text=No+Image"
+    
+    # Retry logic (3 attempts)
+    for _ in range(3):
         try:
-            # timeout=10 means wait 10 seconds for a response
-            data = requests.get(url, timeout=10)
-            data.raise_for_status() # Check if we got a 404 or 500 error
-            data = data.json()
+            response = requests.get(url, timeout=5)
+            response.raise_for_status()
+            data = response.json()
             
-            if 'poster_path' in data and data['poster_path']:
+            if data.get('poster_path'):
                 return "https://image.tmdb.org/t/p/w500/" + data['poster_path']
             else:
-                return "https://via.placeholder.com/500x750?text=No+Image"
+                return fallback
                 
-        except requests.exceptions.RequestException as e:
-            # If it failed, wait 1 second and try again
-            time.sleep(1)
+        except requests.exceptions.RequestException:
+            time.sleep(0.2) # Short pause before retry
             continue
             
-    # If all 3 attempts fail, return the error image
-    return "https://via.placeholder.com/500x750?text=Connection+Error"
+    return fallback
 
 def recommend(movie):
     index = movies[movies['title'] == movie].index[0]
     distances = sorted(list(enumerate(similarity[index])), reverse=True, key=lambda x: x[1])
     
-    recommended_names = []
-    recommended_posters = []
+    names = []
+    posters = []
     
     for i in distances[1:6]:
-        # Handle IDs
+        # Handle ID column variations
         if 'movie_id' in movies.columns:
-            movie_id = movies.iloc[i[0]].movie_id
+            m_id = movies.iloc[i[0]].movie_id
+        elif 'id' in movies.columns:
+            m_id = movies.iloc[i[0]].id
         else:
-            movie_id = movies.iloc[i[0]].id
+            m_id = movies.iloc[i[0]].values[0] # Fallback
             
-        recommended_names.append(movies.iloc[i[0]].title)
+        names.append(movies.iloc[i[0]].title)
+        posters.append(fetch_poster(m_id))
         
-        # Fetch the poster
-        poster_url = fetch_poster(movie_id)
-        recommended_posters.append(poster_url)
-        
-        # Wait 0.1 seconds to be polite to the API (Prevents getting blocked)
-        time.sleep(0.1)
-
-    return recommended_names, recommended_posters
+    return names, posters
 
 # --- 4. UI ---
 movie_list = movies['title'].values
 selected_movie = st.selectbox("Type or select a movie", movie_list)
 
 if st.button('Show Recommendation'):
-    names, posters = recommend(selected_movie)
-    
-    col1, col2, col3, col4, col5 = st.columns(5)
-    
-    # Using a loop is cleaner
-    cols = [col1, col2, col3, col4, col5]
-    for idx, col in enumerate(cols):
-        with col:
-            st.text(names[idx])
-            st.image(posters[idx])
+    with st.spinner('Loading...'):
+        names, posters = recommend(selected_movie)
+        
+        cols = st.columns(5)
+        for i in range(5):
+            with cols[i]:
+                # FIX: Using 'width="stretch"' to solve the deprecation error
+                st.image(posters[i], width="stretch")
+                st.caption(names[i])
