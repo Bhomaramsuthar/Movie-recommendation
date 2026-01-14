@@ -46,12 +46,12 @@ A Content-Based Movie Recommendation System built with Python and Streamlit. It 
     ```
 
 ## 📂 Project Structure
-├── app.py # Main application logic 
-├── movie_list.pkl # Pre-processed movie dataframe 
-├── similarity_compressed.pkl # Compressed similarity matrix (Joblib) 
-├── requirements.txt # Project dependencies 
-├── .gitignore # Files excluded from Git 
-└── README.md # Project documentation
+├── app.py # Main application logic <br>
+├── movie_list.pkl # Pre-processed movie dataframe <br>
+├── similarity_compressed.pkl # Compressed similarity matrix (Joblib) <br>
+├── requirements.txt # Project dependencies <br>
+├── .gitignore # Files excluded from Git <br>
+└── README.md # Project documentation<br>
 
 
 ---
