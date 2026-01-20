@@ -5,6 +5,7 @@ import requests
 import joblib
 import os
 import time
+import gc
 
 # 1. Page Config (Must be the very first command)
 st.set_page_config(layout="wide") 
@@ -56,7 +57,7 @@ def fetch_poster(movie_id):
             data = response.json()
             
             if data.get('poster_path'):
-                return "https://image.tmdb.org/t/p/w500/" + data['poster_path']
+                return "https://image.tmdb.org/t/p/w185/" + data['poster_path']
             else:
                 return fallback
                 
@@ -84,6 +85,7 @@ def recommend(movie):
             
         names.append(movies.iloc[i[0]].title)
         posters.append(fetch_poster(m_id))
+        gc.collect()
         
     return names, posters
 
