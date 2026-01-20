@@ -12,15 +12,24 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 
 @st.cache_resource
 def load_data():
-    # Load the Answer Key (Tiny Dictionary)
-    dict_path = os.path.join(current_dir, 'similarity_dict.pkl')
-    similarity_dict = pickle.load(open(dict_path, 'rb'))
-    return similarity_dict
+    try:
+        # Load the Answer Key (Tiny Dictionary)
+        # We NO LONGER need movie_list.pkl or vectors.pkl
+        dict_path = os.path.join(current_dir, 'similarity_dict.pkl')
+        
+        if not os.path.exists(dict_path):
+            st.error(f"File not found: {dict_path}. Did you run the generator script?")
+            return None
+
+        similarity_dict = pickle.load(open(dict_path, 'rb'))
+        return similarity_dict
+    except Exception as e:
+        st.error(f"Error loading dictionary: {e}")
+        return None
 
 similarity_dict = load_data()
 
 if similarity_dict is None:
-    st.error("Error: 'similarity_dict.pkl' not found.")
     st.stop()
 
 # --- POSTER FETCHER ---
@@ -39,15 +48,14 @@ def fetch_poster(movie_id):
     return "https://via.placeholder.com/185x278?text=No+Image"
 
 # --- UI ---
-# Get movie list directly from the dictionary keys
+# We get the movie names directly from the dictionary keys
 movie_list = sorted(similarity_dict.keys())
 selected_movie = st.selectbox("Type or select a movie", movie_list)
 
 if st.button('Show Recommendation'):
     with st.spinner('Thinking...'):
         
-        # 1. Look up answer instantly (O(1) complexity)
-        # The dict already has [(Title, ID), (Title, ID)...]
+        # 1. Look up answer instantly (Dictionary Lookup)
         recommendations = similarity_dict.get(selected_movie, [])
         
         # 2. Fetch Posters
