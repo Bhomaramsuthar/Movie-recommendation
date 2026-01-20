@@ -20,14 +20,13 @@ def load_data():
         movies_path = os.path.join(current_dir, 'movie_list.pkl')
         movies = pickle.load(open(movies_path, 'rb'))
         
-        # NEW: Load VECTORS instead of SIMILARITY
-        # This fixes the "No such file" error because we are looking for the new file now.
+        # Load VECTORS (Ensure vectors.pkl is in your folder!)
         vectors_path = os.path.join(current_dir, 'vectors.pkl')
         vectors = pickle.load(open(vectors_path, 'rb'))
         
         return movies, vectors
     except Exception as e:
-        st.error(f"Error loading files. Please make sure 'vectors.pkl' is in the folder. Error details: {e}")
+        st.error(f"Error loading files: {e}")
         return None, None
 
 movies, vectors = load_data()
@@ -56,8 +55,7 @@ def fetch_poster(movie_id):
 def recommend(movie):
     movie_index = movies[movies['title'] == movie].index[0]
     
-    # CALCULATE SIMILARITY ON THE FLY
-    # This replaces the old huge matrix
+    # Calculate similarity on the fly (Fast & Low Memory)
     similarity_scores = cosine_similarity(vectors[movie_index], vectors).flatten()
     
     distances = sorted(list(enumerate(similarity_scores)), reverse=True, key=lambda x: x[1])
@@ -66,6 +64,7 @@ def recommend(movie):
     posters = []
     
     for i in distances[1:6]:
+        # Handle ID safely
         if 'movie_id' in movies.columns:
             m_id = movies.iloc[i[0]].movie_id
         elif 'id' in movies.columns:
@@ -90,4 +89,6 @@ if st.button('Show Recommendation'):
         cols = st.columns(5)
         for i in range(5):
             with cols[i]:
-                st.image(posters[i], caption=names[i], use_container_width=True)
+                # FIX: Replaced 'use_container_width' with 'width="stretch"'
+                # This matches exactly what your error logs asked for.
+                st.image(posters[i], caption=names[i], width="stretch")
